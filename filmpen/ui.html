@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FilmPen</title>
+<style>
+  :root {
+    --bg: #121110; --panel: #1c1a18; --line: #2e2a26; --text: #ede7df;
+    --muted: #9a9087; --accent: #e8a33d; --ok: #7cc47f; --bad: #d9705b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; background: rgba(18,17,16,.94);
+           backdrop-filter: blur(8px); border-bottom: 1px solid var(--line);
+           padding: 12px 16px; }
+  .top { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+  h1 { font-size: 18px; margin: 0; letter-spacing: .04em; }
+  h1 span { color: var(--accent); }
+  .status { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px;
+            min-width: 0; }
+  .status .msg { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--bad); flex: none; }
+  .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .roll { margin-top: 10px; display: flex; gap: 8px; align-items: center; overflow-x: auto; }
+  .roll label { color: var(--muted); font-size: 12px; text-transform: uppercase;
+                letter-spacing: .08em; flex: none; }
+  .chip { flex: none; border: 1px solid var(--line); background: var(--panel); color: var(--text);
+          padding: 7px 12px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 14px; }
+  .chip.sel { border-color: var(--accent); color: var(--accent); }
+  .busy { font-size: 12px; color: var(--accent); margin-top: 6px; min-height: 16px; }
+  main { padding: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+  .card { position: relative; aspect-ratio: 4/3; background: var(--panel); border-radius: 6px;
+          overflow: hidden; cursor: pointer; border: 1px solid var(--line); }
+  .card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .badge { position: absolute; left: 6px; bottom: 6px; font-size: 11px; padding: 2px 7px;
+           border-radius: 4px; background: rgba(0,0,0,.6); color: var(--text); }
+  .empty { color: var(--muted); text-align: center; padding: 60px 16px; max-width: 460px; margin: auto; }
+  .empty b { color: var(--text); }
+  /* viewer */
+  .viewer { position: fixed; inset: 0; background: rgba(8,8,7,.97); z-index: 10;
+            display: none; flex-direction: column; }
+  .viewer.open { display: flex; }
+  .stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center;
+           padding: 12px; position: relative; user-select: none; -webkit-user-select: none; }
+  .stage img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 3px; }
+  .hint { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); font-size: 12px;
+          color: var(--muted); background: rgba(0,0,0,.5); padding: 3px 10px; border-radius: 999px; }
+  .bar { border-top: 1px solid var(--line); padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+         display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .bar .spacer { flex: 1; }
+  .btn { border: 1px solid var(--line); background: var(--panel); color: var(--text); font: inherit;
+         padding: 8px 14px; border-radius: 6px; cursor: pointer; text-decoration: none; font-size: 14px; }
+  .btn.primary { background: var(--accent); color: #1a1208; border-color: var(--accent); }
+  .close { position: absolute; top: 10px; right: 12px; z-index: 2; }
+  .desc { width: 100%; font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <h1>Film<span>Pen</span></h1>
+    <div class="status"><span class="dot" id="dot"></span><span class="msg" id="msg">Connecting…</span></div>
+  </div>
+  <div class="roll" id="roll"><label>Loaded film</label></div>
+  <div class="busy" id="busy"></div>
+</header>
+<main>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" hidden>
+    <p><b>No photos yet.</b></p>
+    <p>On the E-PL9: <b>Playback menu ▸ Connection to Smartphone</b>. Join the camera's Wi-Fi from this
+       computer and new shots will appear here, already developed.</p>
+  </div>
+</main>
+
+<div class="viewer" id="viewer">
+  <button class="btn close" id="close">Close</button>
+  <div class="stage" id="stage">
+    <span class="hint">Hold to see the original</span>
+    <img id="big" alt="">
+  </div>
+  <div class="bar">
+    <div id="vlooks" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+    <span class="spacer"></span>
+    <a class="btn primary" id="dl" href="#">Download</a>
+    <div class="desc" id="vdesc"></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let state = null, open = null, holding = false;
+
+async function api(path, body) {
+  const r = await fetch(path, body ? {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                      body: JSON.stringify(body)} : {});
+  return r.json();
+}
+
+function lookName(key) {
+  const l = state.looks.find(l => l.key === key);
+  return l ? l.name : 'Undeveloped';
+}
+
+function render() {
+  const cam = state.camera || {};
+  $('dot').classList.toggle('on', !!cam.connected);
+  $('msg').textContent = cam.connected ? `${cam.model || 'Camera'} · ${cam.message}` : cam.message;
+  $('busy').textContent = cam.busy || '';
+
+  const roll = $('roll');
+  roll.querySelectorAll('.chip').forEach(c => c.remove());
+  for (const l of state.looks) {
+    const b = document.createElement('button');
+    b.className = 'chip' + (l.key === state.current_look ? ' sel' : '');
+    b.textContent = l.name;
+    b.title = l.description;
+    b.onclick = async () => { await api('/api/look', {look: l.key}); refresh(); };
+    roll.appendChild(b);
+  }
+
+  const grid = $('grid');
+  $('empty').hidden = state.shots.length > 0;
+  const want = state.shots.map(s => s.name + '|' + s.look).join(',');
+  if (grid.dataset.key !== want) {
+    grid.dataset.key = want;
+    grid.innerHTML = '';
+    for (const s of state.shots) {
+      const look = s.look || 'original';
+      const c = document.createElement('div');
+      c.className = 'card';
+      c.innerHTML = `<img loading="lazy" src="/thumb/${look}/${encodeURIComponent(s.name)}?v=${look}">
+                     <span class="badge">${lookName(s.look)}</span>`;
+      c.onclick = () => openViewer(s.name);
+      grid.appendChild(c);
+    }
+  }
+  if (open) renderViewer();
+}
+
+function shot(name) { return state.shots.find(s => s.name === name); }
+
+function openViewer(name) { open = name; $('viewer').classList.add('open'); renderViewer(); }
+function closeViewer() { open = null; $('viewer').classList.remove('open'); }
+
+function renderViewer() {
+  const s = shot(open); if (!s) return closeViewer();
+  const look = s.look || 'original';
+  const src = holding ? `/full/original/${encodeURIComponent(s.name)}`
+                      : `/full/${look}/${encodeURIComponent(s.name)}`;
+  if ($('big').getAttribute('src') !== src) $('big').src = src;
+  $('dl').href = `/download/${look}/${encodeURIComponent(s.name)}`;
+  const v = $('vlooks'); v.innerHTML = '';
+  for (const l of state.looks) {
+    const b = document.createElement('button');
+    b.className = 'chip' + (l.key === s.look ? ' sel' : '');
+    b.textContent = l.name;
+    b.onclick = async () => {
+      b.textContent = 'Developing…';
+      await api('/api/develop', {name: s.name, look: l.key});
+      refresh();
+    };
+    v.appendChild(b);
+  }
+  const l = state.looks.find(l => l.key === s.look);
+  $('vdesc').textContent = `${s.name}${s.taken ? ' · ' + s.taken.replace('T', ' ') : ''}` +
+                           (l ? ' · ' + l.description : '');
+}
+
+const stage = $('stage');
+const hold = on => { holding = on; if (open) renderViewer(); };
+stage.addEventListener('pointerdown', () => hold(true));
+['pointerup', 'pointerleave', 'pointercancel'].forEach(e => stage.addEventListener(e, () => hold(false)));
+$('close').onclick = closeViewer;
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeViewer(); });
+
+async function refresh() {
+  try { state = await api('/api/state'); render(); }
+  catch (e) { $('msg').textContent = 'FilmPen server not running'; $('dot').classList.remove('on'); }
+}
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>
