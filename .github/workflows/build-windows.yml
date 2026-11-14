@@ -1,0 +1,48 @@
+name: Build FilmPen.exe
+
+# Builds the standalone Windows app on GitHub's Windows machines.
+# - Every push to main: FilmPen.exe is available under the run's "Artifacts".
+# - Pushing a tag like v0.2.0: FilmPen.exe is attached to a GitHub Release.
+# - "Run workflow" button on the Actions tab: manual build.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements-build.txt
+
+      - name: Build FilmPen.exe
+        run: python -m PyInstaller filmpen.spec --noconfirm --clean
+
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          .\dist\FilmPen.exe looks
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FilmPen-windows
+          path: dist/FilmPen.exe
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/FilmPen.exe

@@ -28,6 +28,24 @@ on private networks if you want to open the gallery from your phone.
 
 Manual: `pip install -r requirements.txt`, then `python -m filmpen run --open`.
 
+## Standalone app (FilmPen.exe)
+
+No Python needed on the machine that runs it.
+
+- **Automatic:** every push to `main` builds `FilmPen.exe` on GitHub Actions
+  (Actions tab ▸ latest run ▸ *Artifacts*). Push a tag like `v0.2.0` and the exe
+  is attached to a GitHub Release.
+- **Locally:** double-click `build_exe.bat` (needs Python once, on the build PC).
+  The result is `dist\FilmPen.exe`.
+
+Double-click `FilmPen.exe` to start the server and open the gallery; close its
+window to stop it. Running it again while it's open just reopens the gallery.
+Command-line arguments work as with `python -m filmpen`, e.g.
+`FilmPen.exe run --transfer 2048 --look bw`.
+
+It isn't code-signed, so the first time Windows SmartScreen may say
+"Windows protected your PC": click *More info* ▸ *Run anyway*.
+
 ## Use it with the E-PL9
 
 1. On the camera: **Menu ▸ Setup (wrench) ▸ Wi-Fi/Bluetooth Settings**, then make sure
@@ -99,6 +117,7 @@ filmpen/library.py  library on disk + background watcher
 filmpen/server.py   local web UI / JSON API
 filmpen/ui.html     the gallery
 filmpen/mock.py     fake camera
+filmpen_app.py      entry point for FilmPen.exe (filmpen.spec, build_exe.bat)
 ```
 
 ## Next ideas
