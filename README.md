@@ -12,6 +12,15 @@ Films in v0.1:
 | `slide`    | Chrome 100        | Ektachrome/Velvia-style: deep blacks, punchy colour, cool shadows, fine grain |
 | `bw`       | Tri-X 400         | High-speed B&W: yellow-filter mix, strong contrast, chunky grain |
 
+## Web version (no install)
+
+**https://dferreiramarques.github.io/filmpen/app/**
+
+Drop JPEGs from the camera (SD card or OI.Share) onto the page and pick a film. It runs the
+same `looks.py` in your browser with Pyodide, so photos never leave your device. It can't
+talk to the camera itself: browsers can't reach the camera's plain-HTTP Wi-Fi API from an
+https page, so live sync needs the desktop app below.
+
 ## Install
 
 Requires Python 3.10+ and an internet connection (do this *before* joining the camera's Wi-Fi).
